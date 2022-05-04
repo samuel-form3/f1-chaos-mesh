@@ -14,12 +14,7 @@ See in the examples folder
 
 ```go
 func main() {
-	f1Chaos, err := chaosmesh.NewChaosPlugin()
-	if err != nil {
-		fmt.Println("error creating chaos plugin", err)
-		os.Exit(1)
-	}
-
+	f1Chaos := chaosmesh.NewChaosPlugin()
 	f1Scenarios := f1.Scenarios().
 		Add("one", scenarioOne).
 		Add("oneWithChaos", scenarioOne, f1Chaos.WithExperiments(scenarioOneChaosExperiments))

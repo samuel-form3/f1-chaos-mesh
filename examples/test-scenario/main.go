@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1"
 	"github.com/form3tech-oss/f1/pkg/f1/testing"
@@ -12,12 +9,7 @@ import (
 )
 
 func main() {
-	f1Chaos, err := chaosmesh.NewChaosPlugin()
-	if err != nil {
-		fmt.Println("error creating chaos plugin", err)
-		os.Exit(1)
-	}
-
+	f1Chaos := chaosmesh.NewChaosPlugin()
 	f1Scenarios := f1.Scenarios().
 		Add("one", scenarioOne).
 		Add("oneWithChaos", scenarioOne, f1Chaos.WithExperiments(scenarioOneChaosExperiments))
