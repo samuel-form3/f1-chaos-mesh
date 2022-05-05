@@ -2,7 +2,6 @@ package chaosmesh
 
 import (
 	"context"
-	"fmt"
 
 	chaosmeshv1alpha1 "github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1/scenarios"
@@ -61,7 +60,6 @@ func (cp *ChaosPlugin) WithExperiments(cfn ChaosExperimentsConfigureFn) scenario
 func (cp *ChaosPlugin) wrapScenarioWithExperiments(s testing.ScenarioFn, cfn ChaosExperimentsConfigureFn) testing.ScenarioFn {
 	return func(t *testing.T) testing.RunFn {
 		if cp.initErr != nil {
-			fmt.Println("wtf")
 			t.Fatalf("Could not initialize chaos plugin correctly: %s", cp.initErr)
 		}
 
