@@ -24,6 +24,7 @@ func scenarioOne(t *testing.T) testing.RunFn {
 
 func scenarioOneChaosExperiments(b *chaosmesh.ChaosExperimentsBuilder) {
 	b.
+		WithExistingNetworkChaos("default", "scenario-two").
 		WithNetworkChaos(&v1alpha1.NetworkChaos{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      "scenario-one",
@@ -45,5 +46,6 @@ func scenarioOneChaosExperiments(b *chaosmesh.ChaosExperimentsBuilder) {
 					},
 				},
 			},
-		})
+		}).
+		WithExistingDNSChaos("chaos-testing", "dns-chaos-example")
 }

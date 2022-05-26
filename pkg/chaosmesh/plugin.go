@@ -1,8 +1,6 @@
 package chaosmesh
 
 import (
-	"context"
-
 	chaosmeshv1alpha1 "github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1/scenarios"
 	"github.com/form3tech-oss/f1/pkg/f1/testing"
@@ -47,7 +45,6 @@ func NewChaosPlugin(opts ...kubernetes.Option) *ChaosPlugin {
 	cp.kubeCli = cl
 
 	return cp
-
 }
 
 func (cp *ChaosPlugin) WithExperiments(cfn ChaosExperimentsConfigureFn) scenarios.ScenarioOption {
@@ -67,43 +64,20 @@ func (cp *ChaosPlugin) wrapScenarioWithExperiments(s testing.ScenarioFn, cfn Cha
 		cfn(experimentsBuilder)
 		experiments := experimentsBuilder.build()
 
-		// Configure Experiments
-		err := cp.configureExperiments(t, experiments)
-		t.Require.NoError(err)
+		ec := newExperimentsConfigurator(t, cp.kubeCli, experiments)
 
-		// Setup Cleanup Experiments
 		t.Cleanup(func() {
-			err := cp.cleanupExperiments(t, experiments)
+			err := ec.CleanupExperiments()
 			t.Require.NoError(err)
 		})
 
+		// Configure Experiments
+		err := ec.ConfigureExperiments()
+		if err != nil {
+			ec.CleanupExperiments()
+			t.FailNow()
+		}
+
 		return s(t)
 	}
-}
-
-func (cp *ChaosPlugin) configureExperiments(t *testing.T, exp *ChaosExperiments) error {
-	t.Logger.Info("Setting up chaos experiments")
-	for _, nc := range exp.networkChaos {
-		t.Logger.Infof("Setting up chaos experiment [NetworkChaos]::%s", nc.Name)
-		err := cp.kubeCli.Create(context.Background(), nc)
-		if err != nil {
-			t.Logger.Errorf("Error setting up chaos experiment [NetworkChaos]::%s : %s", nc.Name, err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (cp *ChaosPlugin) cleanupExperiments(t *testing.T, exp *ChaosExperiments) error {
-	t.Logger.Info("Cleaning up chaos experiments")
-	for _, nc := range exp.networkChaos {
-		t.Logger.Infof("Cleaning up chaos experiment [NetworkChaos]::%s", nc.Name)
-		err := cp.kubeCli.Delete(context.Background(), nc)
-		if err != nil {
-			t.Logger.Errorf("Error setting up chaos experiment [NetworkChaos]::%s : %s", nc.Name, err)
-		}
-	}
-
-	return nil
 }
