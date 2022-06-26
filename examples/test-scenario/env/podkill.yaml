@@ -3,8 +3,6 @@ kind: PodChaos
 metadata:
   name: kube-dns-pod-kill
   namespace: kube-system
-  annotations:
-    experiment.chaos-mesh.org/pause: "true"
 spec:
   action: pod-kill
   mode: fixed-percent

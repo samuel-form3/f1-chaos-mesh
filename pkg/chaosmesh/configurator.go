@@ -13,6 +13,7 @@ import (
 
 	chaosmeshv1alpha1 "github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1/testing"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -192,12 +193,7 @@ func (c *experimentsConfigurator) waitForExperimentToBeInjected(gvk schema.Group
 func (c *experimentsConfigurator) createChaosFromFile(gvk schema.GroupVersionKind, filePath string) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
-
-	f, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(obj)
+	err := unmarshalFile(filePath, obj)
 	if err != nil {
 		return err
 	}
@@ -208,9 +204,7 @@ func (c *experimentsConfigurator) createChaosFromFile(gvk schema.GroupVersionKin
 func (c *experimentsConfigurator) createChaosFromYaml(gvk schema.GroupVersionKind, yaml string) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
-
-	yr := strings.NewReader(yaml)
-	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(obj)
+	err := unmarshalYaml(yaml, obj)
 	if err != nil {
 		return err
 	}
@@ -232,24 +226,18 @@ func (c *experimentsConfigurator) deleteChaos(gvk schema.GroupVersionKind, obj *
 func (c *experimentsConfigurator) deleteChaosFromFile(gvk schema.GroupVersionKind, filePath string) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
+	err := unmarshalFile(filePath, obj)
+	if err != nil {
+		return err
+	}
 
-	f, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(obj)
-	if err != nil {
-		return err
-	}
 	return c.deleteChaos(gvk, obj)
 }
 
 func (c *experimentsConfigurator) deleteChaosFromYaml(gvk schema.GroupVersionKind, yaml string) error {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
-
-	yr := strings.NewReader(yaml)
-	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(obj)
+	err := unmarshalYaml(yaml, obj)
 	if err != nil {
 		return err
 	}
@@ -297,12 +285,7 @@ func (c *experimentsConfigurator) createChaosWorkflow(wf *chaosmeshv1alpha1.Work
 
 func (c *experimentsConfigurator) createChaosWorkflowFromFile(filePath string) error {
 	wf := &chaosmeshv1alpha1.Workflow{}
-
-	f, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(wf)
+	err := unmarshalFile(filePath, wf)
 	if err != nil {
 		return err
 	}
@@ -312,9 +295,7 @@ func (c *experimentsConfigurator) createChaosWorkflowFromFile(filePath string) e
 
 func (c *experimentsConfigurator) createChaosWorkflowFromYaml(yaml string) error {
 	wf := &chaosmeshv1alpha1.Workflow{}
-
-	yr := strings.NewReader(yaml)
-	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(wf)
+	err := unmarshalYaml(yaml, wf)
 	if err != nil {
 		return err
 	}
@@ -337,12 +318,7 @@ func (c *experimentsConfigurator) deleteChaosWorkflow(wf *chaosmeshv1alpha1.Work
 
 func (c *experimentsConfigurator) deleteChaosWorkflowFromFile(filePath string) error {
 	wf := &chaosmeshv1alpha1.Workflow{}
-
-	f, err := os.Open(filePath)
-	if err != nil {
-		return err
-	}
-	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(wf)
+	err := unmarshalFile(filePath, wf)
 	if err != nil {
 		return err
 	}
@@ -352,14 +328,35 @@ func (c *experimentsConfigurator) deleteChaosWorkflowFromFile(filePath string) e
 
 func (c *experimentsConfigurator) deleteChaosWorkflowFromYaml(yaml string) error {
 	wf := &chaosmeshv1alpha1.Workflow{}
-
-	yr := strings.NewReader(yaml)
-	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(wf)
+	err := unmarshalYaml(yaml, wf)
 	if err != nil {
 		return err
 	}
 
 	return c.deleteChaosWorkflow(wf)
+}
+
+func unmarshalFile(filePath string, obj interface{}) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return errors.Wrapf(err, "error opening file %s", filePath)
+	}
+	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(obj)
+	if err != nil {
+		return errors.Wrapf(err, "error decoding yaml from file %s", filePath)
+	}
+
+	return nil
+}
+
+func unmarshalYaml(yaml string, obj interface{}) error {
+	yr := strings.NewReader(yaml)
+	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(obj)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func experimentHasCondition(status chaosmeshv1alpha1.ChaosStatus, condition chaosmeshv1alpha1.ChaosConditionType) bool {

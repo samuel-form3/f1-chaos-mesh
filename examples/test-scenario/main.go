@@ -53,7 +53,7 @@ func scenarioOneChaosExperiments(b *chaosmesh.ChaosExperimentsBuilder) {
 }
 
 func scenarioOneChaosFromFile(b *chaosmesh.ChaosExperimentsBuilder) {
-	b.WithNetworkChaosFromFile("./env/existing-networkchaos.yaml")
+	b.WithNetworkChaosFromFile("./env/networkchaos.yaml")
 }
 
 func scenarioOneChaosFromYaml(b *chaosmesh.ChaosExperimentsBuilder) {
@@ -127,7 +127,7 @@ func scenarioOneChaosWorkflow(b *chaosmesh.ChaosExperimentsBuilder) {
 }
 
 func scenarioOneChaosWorkflowFile(b *chaosmesh.ChaosExperimentsBuilder) {
-	b.WithChaosWorkflowFromFile("./env/existing-podchaosworkflow.yaml")
+	b.WithChaosWorkflowFromFile("./env/podchaosworkflow.yaml")
 }
 
 func scenarioOneChaosWorkflowYaml(b *chaosmesh.ChaosExperimentsBuilder) {

@@ -3,8 +3,6 @@ kind: DNSChaos
 metadata:
   name: dns-chaos-example
   namespace: chaos-testing
-  annotations:
-    "experiment.chaos-mesh.org/pause": "true"
 spec:
   action: random
   mode: all
