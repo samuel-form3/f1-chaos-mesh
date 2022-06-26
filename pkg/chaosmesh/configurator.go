@@ -3,16 +3,20 @@ package chaosmesh
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"time"
 
 	chaosmeshv1alpha1 "github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1/testing"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	yamlUtil "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -43,12 +47,42 @@ func (c *experimentsConfigurator) ConfigureExperiments() error {
 		}
 	}
 
-	for gvk, exps := range c.experiments.existingChaos {
-		for _, ce := range exps {
-			err := c.enableExistingChaos(gvk, ce)
+	for gvk, exps := range c.experiments.chaosFromFiles {
+		for _, filePath := range exps {
+			err := c.createChaosFromFile(gvk, filePath)
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	for gvk, exps := range c.experiments.chaosFromYaml {
+		for _, yaml := range exps {
+			err := c.createChaosFromYaml(gvk, yaml)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, wf := range c.experiments.chaosWorkflows {
+		err := c.createChaosWorkflow(wf)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, filePath := range c.experiments.chaosWorkflowsFromFiles {
+		err := c.createChaosWorkflowFromFile(filePath)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, yaml := range c.experiments.chaosWorkflowsFromYaml {
+		err := c.createChaosWorkflowFromYaml(yaml)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -67,12 +101,42 @@ func (c *experimentsConfigurator) CleanupExperiments() error {
 		}
 	}
 
-	for gvk, exps := range c.experiments.existingChaos {
-		for _, ce := range exps {
-			err := c.pauseExistingChaos(gvk, ce)
+	for gvk, cc := range c.experiments.chaosFromFiles {
+		for _, ccc := range cc {
+			err := c.deleteChaosFromFile(gvk, ccc)
 			if err != nil {
 				c.t.Logger.Error(err)
 			}
+		}
+	}
+
+	for gvk, cc := range c.experiments.chaosFromYaml {
+		for _, ccc := range cc {
+			err := c.deleteChaosFromYaml(gvk, ccc)
+			if err != nil {
+				c.t.Logger.Error(err)
+			}
+		}
+	}
+
+	for _, wf := range c.experiments.chaosWorkflows {
+		err := c.deleteChaosWorkflow(wf)
+		if err != nil {
+			c.t.Logger.Error(err)
+		}
+	}
+
+	for _, wf := range c.experiments.chaosWorkflowsFromFiles {
+		err := c.deleteChaosWorkflowFromFile(wf)
+		if err != nil {
+			c.t.Logger.Error(err)
+		}
+	}
+
+	for _, wf := range c.experiments.chaosWorkflowsFromYaml {
+		err := c.deleteChaosWorkflowFromYaml(wf)
+		if err != nil {
+			c.t.Logger.Error(err)
 		}
 	}
 
@@ -89,7 +153,17 @@ func (c *experimentsConfigurator) createChaos(gvk schema.GroupVersionKind, obj *
 		return err
 	}
 
-	err = wait.PollImmediate(2*time.Second, 1*time.Minute, func() (bool, error) {
+	err = c.waitForExperimentToBeInjected(gvk, obj, expFriendlyName)
+	if err != nil {
+		c.t.Logger.Errorf("Chaos experiment %s was not injected, err: %s", expFriendlyName, err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *experimentsConfigurator) waitForExperimentToBeInjected(gvk schema.GroupVersionKind, obj *unstructured.Unstructured, expFriendlyName string) error {
+	return wait.PollImmediate(2*time.Second, 1*time.Minute, func() (bool, error) {
 		updObj := &unstructured.Unstructured{}
 		updObj.SetGroupVersionKind(gvk)
 
@@ -111,15 +185,37 @@ func (c *experimentsConfigurator) createChaos(gvk schema.GroupVersionKind, obj *
 			return false, nil
 		}
 
-		return isExperimentAllInjected(status), nil
+		return experimentHasCondition(status, chaosmeshv1alpha1.ConditionAllInjected), nil
 	})
+}
 
+func (c *experimentsConfigurator) createChaosFromFile(gvk schema.GroupVersionKind, filePath string) error {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	f, err := os.Open(filePath)
 	if err != nil {
-		c.t.Logger.Errorf("Chaos experiment %s was not injected, err: %s", expFriendlyName, err)
+		return err
+	}
+	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(obj)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return c.createChaos(gvk, obj)
+}
+
+func (c *experimentsConfigurator) createChaosFromYaml(gvk schema.GroupVersionKind, yaml string) error {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	yr := strings.NewReader(yaml)
+	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(obj)
+	if err != nil {
+		return err
+	}
+
+	return c.createChaos(gvk, obj)
 }
 
 func (c *experimentsConfigurator) deleteChaos(gvk schema.GroupVersionKind, obj *unstructured.Unstructured) error {
@@ -133,59 +229,142 @@ func (c *experimentsConfigurator) deleteChaos(gvk schema.GroupVersionKind, obj *
 	return nil
 }
 
-func (c *experimentsConfigurator) enableExistingChaos(gvk schema.GroupVersionKind, nn types.NamespacedName) error {
-	ce := &unstructured.Unstructured{}
-	ce.SetGroupVersionKind(gvk)
+func (c *experimentsConfigurator) deleteChaosFromFile(gvk schema.GroupVersionKind, filePath string) error {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
 
-	expFriendlyName := generateExperimentFriendlyName(gvk.Kind, nn.Namespace, nn.Name)
-	c.t.Logger.Infof("Enabling chaos experiment %s", expFriendlyName)
-
-	err := c.kubeCli.Get(context.Background(), nn, ce)
+	f, err := os.Open(filePath)
 	if err != nil {
-		c.t.Logger.Errorf("Error setting up chaos experiment %s, err: %s", expFriendlyName, err)
+		return err
+	}
+	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(obj)
+	if err != nil {
+		return err
+	}
+	return c.deleteChaos(gvk, obj)
+}
+
+func (c *experimentsConfigurator) deleteChaosFromYaml(gvk schema.GroupVersionKind, yaml string) error {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	yr := strings.NewReader(yaml)
+	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(obj)
+	if err != nil {
 		return err
 	}
 
-	annotations := ce.GetAnnotations()
-	delete(annotations, "experiment.chaos-mesh.org/pause")
-	ce.SetAnnotations(annotations)
-	err = c.kubeCli.Update(context.Background(), ce)
+	return c.deleteChaos(gvk, obj)
+}
+
+func (c *experimentsConfigurator) createChaosWorkflow(wf *chaosmeshv1alpha1.Workflow) error {
+	expFriendlyName := generateExperimentFriendlyName("Workflow", wf.GetNamespace(), wf.GetName())
+
+	c.t.Logger.Infof("Setting up chaos workflow %s", expFriendlyName)
+	err := c.kubeCli.Create(context.Background(), wf, &client.CreateOptions{})
 	if err != nil {
-		c.t.Logger.Errorf("Could not update existing network chaos %s, err: %s", expFriendlyName, err)
+		c.t.Logger.Errorf("Error setting up chaos workflow %s, err : %s", expFriendlyName, err)
+		return err
+	}
+
+	err = wait.PollImmediate(2*time.Second, 1*time.Minute, func() (bool, error) {
+		var updWf chaosmeshv1alpha1.Workflow
+		err := c.kubeCli.Get(
+			context.Background(),
+			types.NamespacedName{Namespace: wf.GetNamespace(), Name: wf.GetName()},
+			&updWf)
+
+		if err != nil {
+			c.t.Logger.Infof("Could not get chaos workflow %s, err: %s", expFriendlyName, err)
+			return false, nil
+		}
+
+		for _, sc := range updWf.Status.Conditions {
+			if sc.Type == chaosmeshv1alpha1.WorkflowConditionScheduled && sc.Status == corev1.ConditionTrue {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+
+	if err != nil {
+		c.t.Logger.Errorf("Chaos experiment %s was not injected, err: %s", expFriendlyName, err)
 		return err
 	}
 
 	return nil
 }
 
-func (c *experimentsConfigurator) pauseExistingChaos(gvk schema.GroupVersionKind, nn types.NamespacedName) error {
-	ce := &unstructured.Unstructured{}
-	ce.SetGroupVersionKind(gvk)
+func (c *experimentsConfigurator) createChaosWorkflowFromFile(filePath string) error {
+	wf := &chaosmeshv1alpha1.Workflow{}
 
-	expFriendlyName := generateExperimentFriendlyName(gvk.Kind, nn.Namespace, nn.Name)
-	c.t.Logger.Infof("Pausing chaos experiment %s", expFriendlyName)
-
-	err := c.kubeCli.Get(context.Background(), nn, ce)
+	f, err := os.Open(filePath)
 	if err != nil {
-		c.t.Logger.Errorf("Error getting chaos experiment %s, err: %s", expFriendlyName, err)
+		return err
+	}
+	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(wf)
+	if err != nil {
 		return err
 	}
 
-	annotations := ce.GetAnnotations()
-	annotations["experiment.chaos-mesh.org/pause"] = "true"
-	ce.SetAnnotations(annotations)
-	err = c.kubeCli.Update(context.Background(), ce)
+	return c.createChaosWorkflow(wf)
+}
+
+func (c *experimentsConfigurator) createChaosWorkflowFromYaml(yaml string) error {
+	wf := &chaosmeshv1alpha1.Workflow{}
+
+	yr := strings.NewReader(yaml)
+	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(wf)
 	if err != nil {
-		c.t.Logger.Errorf("Error updating chaos experiment %s", expFriendlyName)
+		return err
+	}
+
+	return c.createChaosWorkflow(wf)
+}
+
+func (c *experimentsConfigurator) deleteChaosWorkflow(wf *chaosmeshv1alpha1.Workflow) error {
+	expFriendlyName := generateExperimentFriendlyName("Workflow", wf.GetNamespace(), wf.GetName())
+
+	c.t.Logger.Infof("Deleting chaos workflow %s", expFriendlyName)
+	err := c.kubeCli.Delete(context.Background(), wf, &client.DeleteOptions{})
+	if err != nil {
+		c.t.Logger.Errorf("Error deleting up chaos workflow %s", expFriendlyName)
 		return err
 	}
 
 	return nil
 }
 
-func isExperimentAllInjected(status chaosmeshv1alpha1.ChaosStatus) bool {
+func (c *experimentsConfigurator) deleteChaosWorkflowFromFile(filePath string) error {
+	wf := &chaosmeshv1alpha1.Workflow{}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	err = yamlUtil.NewYAMLOrJSONDecoder(f, 100).Decode(wf)
+	if err != nil {
+		return err
+	}
+
+	return c.deleteChaosWorkflow(wf)
+}
+
+func (c *experimentsConfigurator) deleteChaosWorkflowFromYaml(yaml string) error {
+	wf := &chaosmeshv1alpha1.Workflow{}
+
+	yr := strings.NewReader(yaml)
+	err := yamlUtil.NewYAMLOrJSONDecoder(yr, 100).Decode(wf)
+	if err != nil {
+		return err
+	}
+
+	return c.deleteChaosWorkflow(wf)
+}
+
+func experimentHasCondition(status chaosmeshv1alpha1.ChaosStatus, condition chaosmeshv1alpha1.ChaosConditionType) bool {
 	for _, sc := range status.Conditions {
-		if sc.Type == chaosmeshv1alpha1.ConditionAllInjected && sc.Status == corev1.ConditionTrue {
+		if sc.Type == condition && sc.Status == corev1.ConditionTrue {
 			return true
 		}
 	}

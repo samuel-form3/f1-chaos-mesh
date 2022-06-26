@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: kube-dns-pod-kill
+  namespace: kube-system
+  annotations:
+    experiment.chaos-mesh.org/pause: "true"
+spec:
+  action: pod-kill
+  mode: fixed-percent
+  value: "66"
+  selector:
+    namespaces:
+      - kube-system
+    labelSelectors:
+      "k8s-app": "kube-dns"

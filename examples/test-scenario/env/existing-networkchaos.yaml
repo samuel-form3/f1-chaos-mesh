@@ -2,6 +2,7 @@ apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
   name: scenario-two
+  namespace: default
 spec:
   action: delay
   mode: one
