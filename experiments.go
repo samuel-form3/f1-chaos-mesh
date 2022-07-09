@@ -262,6 +262,8 @@ func (b *ChaosExperimentsBuilder) WithChaosWorkflowFromYaml(yaml string) *ChaosE
 	return b
 }
 
+// Chaos
+
 func (b *ChaosExperimentsBuilder) withChaos(gvk schema.GroupVersionKind, c interface{}) *ChaosExperimentsBuilder {
 	_, ok := b.experiments.chaos[gvk]
 	if !ok {

@@ -1,0 +1,28 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: workflow-one
+  namespace: kube-system
+  creationTimestamp:
+spec:
+  entry: entry
+  templates:
+  - name: entry
+    templateType: Serial
+    deadline: 5m
+    children:
+    - kill-coredns
+  - name: kill-coredns
+    templateType: PodChaos
+    schedule:
+      schedule: "@every 50s"
+      concurrencyPolicy: Forbid
+      type: PodChaos
+      podChaos:
+        selector:
+          namespaces:
+          - kube-system
+          labelSelectors:
+            k8s-app: kube-dns
+        mode: one
+        action: pod-kill

@@ -4,7 +4,6 @@ import (
 	chaosmeshv1alpha1 "github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1/scenarios"
 	"github.com/form3tech-oss/f1/pkg/f1/testing"
-	"github.com/samuel-form3/f1-chaos-mesh/pkg/kubernetes"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -15,13 +14,8 @@ type ChaosPlugin struct {
 	initErr error
 }
 
-func NewChaosPlugin(opts ...kubernetes.Option) *ChaosPlugin {
+func NewChaosPlugin() *ChaosPlugin {
 	cp := &ChaosPlugin{}
-
-	kubeConfig := &kubernetes.Config{}
-	for _, opt := range opts {
-		opt(kubeConfig)
-	}
 
 	cliConfig, err := config.GetConfig()
 	if err != nil {

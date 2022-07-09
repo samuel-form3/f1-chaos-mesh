@@ -4,7 +4,7 @@ import (
 	"github.com/chaos-mesh/chaos-mesh/api/v1alpha1"
 	"github.com/form3tech-oss/f1/pkg/f1"
 	"github.com/form3tech-oss/f1/pkg/f1/testing"
-	"github.com/samuel-form3/f1-chaos-mesh/pkg/chaosmesh"
+	chaosmesh "github.com/samuel-form3/f1-chaos-mesh"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -79,10 +79,12 @@ spec:
 }
 
 func scenarioOneChaosWorkflow(b *chaosmesh.ChaosExperimentsBuilder) {
+	deadline := "40s"
+	schedule := "@every 2s"
 	b.WithChaosWorkflow(&v1alpha1.Workflow{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "workflow-one",
-			Namespace: "default",
+			Namespace: "kube-system",
 		},
 		Spec: v1alpha1.WorkflowSpec{
 			Entry: "entry",
@@ -96,17 +98,19 @@ func scenarioOneChaosWorkflow(b *chaosmesh.ChaosExperimentsBuilder) {
 					},
 				},
 				{
-					Name: "kill-coredns",
-					Type: v1alpha1.TypePodChaos,
+					Name:     "kill-coredns",
+					Type:     v1alpha1.TemplateType(v1alpha1.TypeSchedule),
+					Deadline: &deadline,
 					Schedule: &v1alpha1.ChaosOnlyScheduleSpec{
-						Schedule:          "@every 15s",
+						Schedule:          schedule,
+						Type:              v1alpha1.ScheduleTypePodChaos,
 						ConcurrencyPolicy: v1alpha1.ForbidConcurrent,
 						EmbedChaos: v1alpha1.EmbedChaos{
 							PodChaos: &v1alpha1.PodChaosSpec{
 								Action: v1alpha1.PodKillAction,
 								ContainerSelector: v1alpha1.ContainerSelector{
 									PodSelector: v1alpha1.PodSelector{
-										Mode: v1alpha1.AllMode,
+										Mode: v1alpha1.OneMode,
 										Selector: v1alpha1.PodSelectorSpec{
 											GenericSelectorSpec: v1alpha1.GenericSelectorSpec{
 												Namespaces: []string{"kube-system"},
